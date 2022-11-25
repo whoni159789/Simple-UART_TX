@@ -8,6 +8,7 @@ module UART_TX_FSM(
     output o_data_out
     );
 
+    /* Definition of FSM States */
     parameter   S_IDLE  = 4'd0,
                 S_START = 4'd1,
                 S_D0    = 4'd2,
@@ -20,22 +21,33 @@ module UART_TX_FSM(
                 S_D7    = 4'd9,
                 S_STOP  = 4'd10;
 
+    /* Baud Rate constant 
+       System Clock : 100MHz
+       => Period : 1/100MHz = 10ns
+       Baud Rate : 9600bps
+       => Period : 1/9600 = 106.16us
+       for 9600bps, BAUD_9600 : 100_000_000 / 9600 = 10416
+    */
     parameter   BAUD_9600 = 10416;
 
     reg r_data_out;
     assign o_data_out = r_data_out;
 
-    reg [13:0] r_counter = 0;
-    reg [3:0] curState = S_IDLE;
-    reg [3:0] nextState;
+    /* Initialization of variables & states*/
+    reg [13:0] r_counter = 0;       // 14bit counter for counting 10416
+    reg [3:0] curState = S_IDLE;    // current state for Mealy Machine
+    reg [3:0] nextState;            // next state for Mealy Machine
 
+    /* Change of states*/
     always @(posedge i_clk or posedge i_reset) begin
+        /* Reset -> Stop UART_TX => Initialize counter & state*/
         if(i_reset) begin
             r_counter <= 0;
             curState <= S_IDLE;
         end
         else begin
-            if(r_counter == BAUD_9600 - 1) begin
+            /* 9600bps -> state changes always 106.16us*/
+            if(r_counter == BAUD_9600 - 1) begin        // meaning of '-1' : counter starts from '0'
                 r_counter <= 0;
                 curState <= nextState;
             end
@@ -45,7 +57,11 @@ module UART_TX_FSM(
         end
     end
 
-    // STATE REGISTER
+    /* Process of Evenets 
+       if you want to know more details,
+       visit my naver blog
+       and refer to FSM of UART_TX.drawio
+    */
     always @(curState or i_start) begin
         case (curState)
             S_IDLE  : begin
@@ -69,7 +85,14 @@ module UART_TX_FSM(
         endcase
     end
 
-    // OUTPUT LOGIC
+    /* Output Logic */
+    /* UART Transmit Protocol 
+       Default : 1
+       Start bit : 0
+       Data 8bit : 0/1 ([7:0] i_data_in)
+       Stop bit : 1
+       => Total 10bit : Start bit(1bit) + Data bit(8bit) + Stop bit(1bit)
+    */
     always @(*) begin
         case (curState)
             S_IDLE  : r_data_out <= 1;
